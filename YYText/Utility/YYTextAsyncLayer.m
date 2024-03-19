@@ -155,33 +155,68 @@ static dispatch_queue_t YYTextAsyncLayerGetReleaseQueue() {
                 CGColorRelease(backgroundColor);
                 return;
             }
-            UIGraphicsBeginImageContextWithOptions(size, opaque, scale);
-            CGContextRef context = UIGraphicsGetCurrentContext();
-            if (opaque && context) {
-                CGContextSaveGState(context); {
-                    if (!backgroundColor || CGColorGetAlpha(backgroundColor) < 1) {
-                        CGContextSetFillColorWithColor(context, [UIColor whiteColor].CGColor);
-                        CGContextAddRect(context, CGRectMake(0, 0, size.width * scale, size.height * scale));
-                        CGContextFillPath(context);
-                    }
-                    if (backgroundColor) {
-                        CGContextSetFillColorWithColor(context, backgroundColor);
-                        CGContextAddRect(context, CGRectMake(0, 0, size.width * scale, size.height * scale));
-                        CGContextFillPath(context);
-                    }
-                } CGContextRestoreGState(context);
-                CGColorRelease(backgroundColor);
-            }
-            task.display(context, size, isCancelled);
-            if (isCancelled()) {
-                UIGraphicsEndImageContext();
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    if (task.didDisplay) task.didDisplay(self, NO);
-                });
-                return;
-            }
-            UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
-            UIGraphicsEndImageContext();
+            
+//            UIGraphicsBeginImageContextWithOptions(size, opaque, scale);
+//            CGContextRef context = UIGraphicsGetCurrentContext();
+//            if (opaque && context) {
+//                CGContextSaveGState(context); {
+//                    if (!backgroundColor || CGColorGetAlpha(backgroundColor) < 1) {
+//                        CGContextSetFillColorWithColor(context, [UIColor whiteColor].CGColor);
+//                        CGContextAddRect(context, CGRectMake(0, 0, size.width * scale, size.height * scale));
+//                        CGContextFillPath(context);
+//                    }
+//                    if (backgroundColor) {
+//                        CGContextSetFillColorWithColor(context, backgroundColor);
+//                        CGContextAddRect(context, CGRectMake(0, 0, size.width * scale, size.height * scale));
+//                        CGContextFillPath(context);
+//                    }
+//                } CGContextRestoreGState(context);
+//                CGColorRelease(backgroundColor);
+//            }
+//            task.display(context, size, isCancelled);
+//            if (isCancelled()) {
+//                UIGraphicsEndImageContext();
+//                dispatch_async(dispatch_get_main_queue(), ^{
+//                    if (task.didDisplay) task.didDisplay(self, NO);
+//                });
+//                return;
+//            }
+//            UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+//            UIGraphicsEndImageContext();
+            
+            // 假设 size, backgroundColor, scale, task, isCancelled 等变量已经定义和初始化
+              
+            // 使用 UIGraphicsImageRenderer 创建一个新的图像上下文
+            UIGraphicsImageRendererFormat *format = [[UIGraphicsImageRendererFormat alloc] init];
+            format.opaque = self.opaque;
+            format.scale = self.contentsScale;
+            UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:size format:format];
+            UIImage *image = [renderer imageWithActions:^(UIGraphicsImageRendererContext * _Nonnull context) {
+                CGContextRef ctx = context.CGContext;
+                  
+                // 如果需要设置背景色
+                if (backgroundColor) {
+                    CGContextSetFillColorWithColor(ctx, backgroundColor);
+                    CGContextFillRect(ctx, CGRectMake(0, 0, size.width, size.height));
+                }
+                  
+                // 执行绘制任务
+                task.display(ctx, size, isCancelled);
+                  
+                // 检查绘制是否被取消
+                if (isCancelled()) {
+                    // 如果绘制被取消，则不执行任何操作
+                    // 因为是在一个block内部，所以不需要手动结束图像上下文
+                    return;
+                }
+                  
+                // 绘制完成，block结束，图像上下文将自动结束
+            }];
+              
+            // 在这里，image 已经包含了绘制的内容
+            // 不需要再调用 UIGraphicsEndImageContext，因为 UIGraphicsImageRenderer 会自动管理上下文
+            
+            
             if (isCancelled()) {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     if (task.didDisplay) task.didDisplay(self, NO);
