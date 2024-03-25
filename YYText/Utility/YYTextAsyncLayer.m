@@ -187,31 +187,38 @@ static dispatch_queue_t YYTextAsyncLayerGetReleaseQueue() {
             // 假设 size, backgroundColor, scale, task, isCancelled 等变量已经定义和初始化
               
             // 使用 UIGraphicsImageRenderer 创建一个新的图像上下文
-            UIGraphicsImageRendererFormat *format = [[UIGraphicsImageRendererFormat alloc] init];
-            format.opaque = self.opaque;
-            format.scale = self.contentsScale;
+            UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat defaultFormat];
+            format.opaque = opaque;
+            format.scale = scale;
             UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:size format:format];
-            UIImage *image = [renderer imageWithActions:^(UIGraphicsImageRendererContext * _Nonnull context) {
-                CGContextRef ctx = context.CGContext;
-                  
-                // 如果需要设置背景色
-                if (backgroundColor) {
-                    CGContextSetFillColorWithColor(ctx, backgroundColor);
-                    CGContextFillRect(ctx, CGRectMake(0, 0, size.width, size.height));
+            UIImage *image = [renderer imageWithActions:^(UIGraphicsImageRendererContext * _Nonnull rendererContext) {
+                CGContextRef context = rendererContext.CGContext;
+                
+                if (opaque) {
+                    if (!backgroundColor || CGColorGetAlpha(backgroundColor) < 1) {
+                        [[UIColor whiteColor] setFill];
+                        CGContextFillRect(context, CGRectMake(0, 0, size.width * scale, size.height * scale));
+                    }
+                    
+                    if (backgroundColor) {
+                        CGContextSetFillColorWithColor(context, backgroundColor);
+                        CGContextFillRect(context, CGRectMake(0, 0, size.width * scale, size.height * scale));
+                    }
                 }
-                  
-                // 执行绘制任务
-                task.display(ctx, size, isCancelled);
-                  
-                // 检查绘制是否被取消
+                
+                task.display(context, size, isCancelled);
+                
                 if (isCancelled()) {
-                    // 如果绘制被取消，则不执行任何操作
-                    // 因为是在一个block内部，所以不需要手动结束图像上下文
+                    if (task.didDisplay) {
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            task.didDisplay(self, NO);
+                        });
+                    }
                     return;
                 }
-                  
-                // 绘制完成，block结束，图像上下文将自动结束
             }];
+
+            // 在闭包处理后创建的图像
               
             // 在这里，image 已经包含了绘制的内容
             // 不需要再调用 UIGraphicsEndImageContext，因为 UIGraphicsImageRenderer 会自动管理上下文
